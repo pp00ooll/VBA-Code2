@@ -1,0 +1,219 @@
+Sub Main()
+
+Dim Startcell As Range, DroneNum As Integer, Dailyrecord As Integer, Drone_Property As Range, Store_Location As Range, _
+Everydelivery As Range, DistanceCalcul As Range, FleetArrange As Range, Ifdelivery As Range, Totaldrone As Range, _
+FinalDaily As Range, ObjectiveFunction As Range, Serviceday As Range, FleetConstraints As Range, Results As Range
+
+    Set Startcell = Range("C3")
+
+Call GetData1(Startcell, DroneNum, Dailyrecord, Drone_Property, Store_Location, Everydelivery)
+
+Call DistanceAssign(Startcell, DroneNum, Dailyrecord, DistanceCalcul, Everydelivery, Drone_Property)
+
+Call FleetUse(Startcell, DroneNum, Dailyrecord, FleetArrange, DistanceCalcul)
+
+Call Vars(FleetArrange, DroneNum, Ifdelivery, Totaldrone)
+
+Call Everyday(Totaldrone, DroneNum, Ifdelivery, FleetArrange, FinalDaily)
+
+Call Objectivefunc(FinalDaily, DroneNum, Totaldrone, Drone_Property, ObjectiveFunction)
+
+Call Constraint(ObjectiveFunction, Ifdelivery, Totaldrone, DroneNum, Serviceday, FleetConstraints)
+
+Call Output(FleetConstraints, Serviceday, ObjectiveFunction, Totaldrone, DroneNum, Results)
+
+End Sub
+
+Sub GetData1(ByVal Firstcell As Range, ByRef Drone As Integer, ByRef Last As Integer, ByRef Dro_Proper As Range, _
+ByRef Store_Loc As Range, Evday_Deli As Range)
+
+Drone = Range(Firstcell, Firstcell.End(xlToRight)).Columns.Count
+Set Dro_Proper = Range(Firstcell(1, 1), Firstcell(4, Drone))
+Set Store_Loc = Range(Firstcell(8, 1), Firstcell(8, 2))
+
+Last = Range(Store_Loc(5, 0), Store_Loc(5, 0).End(xlDown)).Rows.Count
+Set Evday_Deli = Range(Store_Loc(5, 0), Store_Loc(5 + Last, 4))
+
+MsgBox Drone
+MsgBox Dro_Proper.Address
+MsgBox Store_Loc.Address
+MsgBox Last
+MsgBox Evday_Deli.Address
+
+End Sub
+
+
+Sub DistanceAssign(ByVal Firstcell As Range, ByVal Drone As Integer, ByVal Last As Integer, ByRef Discalcul As Range, _
+ByVal Evday_Deli As Range, ByVal Dro_Proper As Range)
+
+Dim i As Integer, d As Integer
+
+Set Discalcul = Range(Firstcell(3, Drone + 4), Firstcell(2 + Last, Drone + 6))
+
+For i = 1 To Last
+    Discalcul(i, 1) = Evday_Deli(i, 1)
+Next i
+
+'=ACOS(SIN($C$10)*SIN(E14)+COS($C$10)*COS(E14)*COS(F14-$D$10))*6371.004*1000
+
+For i = 1 To Last
+    Discalcul(i, 2).Formula = "=ACOS(SIN($C$10)*SIN(" & Evday_Deli(i, 4) & _
+    ")+COS($C$10)*COS(" & Evday_Deli(i, 4) & ")*COS(" & Evday_Deli(i, 5) & _
+    "-$D$10))*6371.004*1000"
+Next i
+
+'=IF(AND(D14<$C$4,J5<$C$5),$C$3,IF(AND(D14<$D$4,J5<$D$5),$D$3,IF(AND(D14<$E$4,J5<$E$5),$E$3,0)))
+
+
+For i = 1 To Last
+
+    For d = Drone To 1 Step -1
+        If Evday_Deli(i, 3) < Dro_Proper(2, d) And Discalcul(i, 2) < Dro_Proper(3, d) Then
+            Discalcul(i, 3) = Dro_Proper(1, d)
+        Else
+            Discalcul(i, 3) = Discalcul(i, 3)
+        End If
+    Next d
+
+Next i
+End Sub
+
+
+
+Sub FleetUse(ByVal Firstcell As Range, ByVal Drone As Integer, ByVal Last As Integer, _
+ByRef Fleet As Range, ByVal Discalcul As Range)
+
+Dim i As Integer, d As Integer
+
+Set Fleet = Range(Firstcell(3, Drone + 9), Firstcell(33, Drone + Drone + 8))
+
+'=COUNTIFS($K$5:$K$4462,$N$4,$I$5:$I$4462,M5)
+
+For i = 1 To 31
+    For d = 1 To Drone
+        Fleet(i, d).Formula = "=COUNTIFS(" & Discalcul(1, 3).Address & ":" & Discalcul(Last, 3).Address & _
+                                    "," & Fleet(0, d).Address & "," & Discalcul(1, 1).Address & ":" & _
+                                    Discalcul(Last, 1).Address & "," & Fleet(i, 0).Address & ")"
+    Next d
+Next i
+End Sub
+
+
+Sub Vars(ByVal Fleet As Range, ByVal Drone As Integer, ByRef Ifdeli As Range, ByRef Finaldrone As Range)
+
+Set Ifdeli = Range(Fleet(1, Drone + 2), Fleet(31, Drone + 2))
+
+Set Finaldrone = Range(Ifdeli(2, 4), Ifdeli(2, Drone + 3))
+
+MsgBox Ifdeli.Address
+MsgBox Finaldrone.Address
+End Sub
+
+Sub Everyday(ByVal Finaldrone As Range, ByVal Drone As Integer, ByVal Ifdeli As Range, ByVal Fleet As Range, ByRef Daily As Range)
+
+Dim i As Integer, d As Integer
+
+Set Daily = Range(Finaldrone(0, Drone + 2), Finaldrone(30, Drone + Drone + 1))
+
+'=$R$5*N5
+
+For i = 1 To 31
+
+    For d = 1 To Drone
+    
+        Daily(i, d).Formula = "=" & Fleet(i, d).Address & "*" & Ifdeli(i, 1).Address
+    
+    Next d
+
+Next i
+End Sub
+
+Sub Objectivefunc(ByVal Daily As Range, ByVal Drone As Integer, ByVal Finaldrone As Range, _
+                    ByVal Dro_Proper As Range, ByRef Object As Range)
+
+Set Object = Daily(1, Drone + 2)
+
+'=SUMPRODUCT(U6:W6,C6:E6)
+
+Object(1, 1).Formula = "=SUMPRODUCT(" & Finaldrone(1, 1).Address & ":" & Finaldrone(1, Drone).Address & "," & _
+                        Dro_Proper(4, 1).Address & ":" & Dro_Proper(4, Drone).Address & ")"
+
+End Sub
+
+Sub Constraint(ByVal Object As Range, ByVal Ifdeli As Range, ByVal Finaldrone As Range, ByVal Drone As Integer, ByRef Sevday As Range, ByRef FleetCon As Range)
+
+Dim d As Integer, i As Integer
+
+Set Sevday = Range(Object(0, 4), Object(0, 5))
+
+Set FleetCon = Range(Sevday(1, 4), Sevday(32, Drone + 3))
+
+'=SUM(R5:R35)
+
+Sevday(1, 1).Formula = "=SUM(" & Ifdeli(1, 1).Address & ":" & Ifdeli(31, 1).Address & ")"
+
+'=V6
+
+For d = 1 To Drone
+    FleetCon(2, d).Formula = "=" & Finaldrone(1, d).Address
+Next d
+
+For i = 3 To 32
+    For d = 1 To Drone
+        FleetCon(i, d).Formula = "=" & FleetCon(i - 1, d).Address
+    Next d
+Next i
+End Sub
+
+
+Sub Output(ByVal FleetCon As Range, ByVal Sevday As Range, ByVal Object As Range, ByVal Finaldrone As Range, ByVal Drone As Integer, ByRef Outp As Range)
+
+Dim i As Integer, d As Integer
+
+Set Outp = Range(FleetCon(1, Drone + 3), FleetCon(1, Drone + Drone + 5))
+
+Outp(1, 1).Formula = "Service Level"
+Outp(1, 2).Formula = "Minimum Service days"
+Outp(1, 3).Formula = "Cost"
+
+For d = 1 To Drone
+
+    Outp(1, 3 + d).Formula = "Fleet " & d
+    
+Next d
+
+Outp(2, 1).Formula = "100%"
+Outp(3, 1).Formula = "90%"
+Outp(4, 1).Formula = "80%"
+Outp(5, 1).Formula = "70%"
+Outp(6, 1).Formula = "60%"
+Outp(7, 1).Formula = "50%"
+
+'=ROUND((AN5*31),0)
+
+For i = 1 To 6
+
+    Outp(1 + i, 2).Formula = "=ROUND((" & Outp(1 + i, 1).Value & "*31),0)"
+
+Next i
+
+' List all the results
+
+For i = 1 To 6
+    
+    Sevday(1, 2).Value = Outp(1 + i, 2).Value
+    
+    SolverOk SetCell:="$AC$5", MaxMinVal:=2, ValueOf:=0, ByChange:= _
+        "$R$5:$R$35,$U$6:$W$6", Engine:=2, EngineDesc:="Simplex LP"
+    SolverOk SetCell:="$AC$5", MaxMinVal:=2, ValueOf:=0, ByChange:= _
+        "$R$5:$R$35,$U$6:$W$6", Engine:=2, EngineDesc:="Simplex LP"
+    SolverSolve
+    
+    Outp(i + 1, 3).Value = Object(1, 1).Value
+    
+    For d = 1 To Drone
+        Outp(1 + i, 3 + d).Value = Finaldrone(1, d).Value
+    Next d
+    
+Next i
+End Sub
